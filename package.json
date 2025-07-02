@@ -1,0 +1,33 @@
+{
+  "name": "todolist-app",
+  "version": "1.0.0",
+  "description": "Uma aplicação web moderna para gerenciamento de tarefas com persistência de dados",
+  "main": "index.html",
+  "scripts": {
+    "start": "python -m http.server 8000",
+    "dev": "python -m http.server 8000",
+    "serve": "npx http-server -p 8000 -c-1",
+    "lint": "echo 'Projeto em HTML/CSS/JS puro - sem linting configurado'",
+    "build": "echo 'Projeto não requer build - arquivos estáticos'"
+  },
+  "keywords": [
+    "todolist",
+    "javascript",
+    "html",
+    "css",
+    "localStorage",
+    "web-app",
+    "task-manager"
+  ],
+  "author": "Aluno da Disciplina de Computação em Nuvem",
+  "license": "MIT",
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usuario/nuvem20251.git"
+  },
+  "bugs": {
+    "url": "https://github.com/usuario/nuvem20251/issues"
+  },
+  "homepage": "https://github.com/usuario/nuvem20251#readme"
+}

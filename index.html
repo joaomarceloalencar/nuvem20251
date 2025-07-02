@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lista de Tarefas - TodoList</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-tasks"></i> Minha Lista de Tarefas</h1>
+            <p>Organize suas atividades e seja mais produtivo!</p>
+        </header>
+
+        <div class="todo-app">
+            <form id="todo-form" class="todo-form">
+                <div class="input-group">
+                    <input 
+                        type="text" 
+                        id="todo-input" 
+                        placeholder="Digite uma nova tarefa..." 
+                        required
+                        maxlength="100"
+                    >
+                    <button type="submit" class="add-btn">
+                        <i class="fas fa-plus"></i> Adicionar
+                    </button>
+                </div>
+            </form>
+
+            <div class="todo-stats">
+                <div class="stat">
+                    <span class="stat-number" id="total-tasks">0</span>
+                    <span class="stat-label">Total</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-number" id="pending-tasks">0</span>
+                    <span class="stat-label">Pendentes</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-number" id="completed-tasks">0</span>
+                    <span class="stat-label">Concluídas</span>
+                </div>
+            </div>
+
+            <div class="todo-filters">
+                <button class="filter-btn active" data-filter="all">
+                    <i class="fas fa-list"></i> Todas
+                </button>
+                <button class="filter-btn" data-filter="pending">
+                    <i class="fas fa-clock"></i> Pendentes
+                </button>
+                <button class="filter-btn" data-filter="completed">
+                    <i class="fas fa-check"></i> Concluídas
+                </button>
+            </div>
+
+            <div class="todo-list-container">
+                <ul id="todo-list" class="todo-list">
+                    <!-- As tarefas serão inseridas aqui dinamicamente -->
+                </ul>
+
+                <div id="empty-state" class="empty-state">
+                    <i class="fas fa-clipboard-list"></i>
+                    <h3>Nenhuma tarefa encontrada</h3>
+                    <p>Adicione uma nova tarefa para começar!</p>
+                </div>
+            </div>
+
+            <div class="todo-actions">
+                <button id="clear-completed" class="action-btn danger">
+                    <i class="fas fa-trash"></i> Limpar Concluídas
+                </button>
+                <button id="clear-all" class="action-btn danger">
+                    <i class="fas fa-trash-alt"></i> Limpar Todas
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Confirmação -->
+    <div id="confirm-modal" class="modal">
+        <div class="modal-content">
+            <h3><i class="fas fa-exclamation-triangle"></i> Confirmar Ação</h3>
+            <p id="confirm-message">Tem certeza que deseja executar esta ação?</p>
+            <div class="modal-actions">
+                <button id="confirm-yes" class="btn-primary">Sim</button>
+                <button id="confirm-no" class="btn-secondary">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
