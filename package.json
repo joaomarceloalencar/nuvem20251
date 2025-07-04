@@ -1,27 +1,39 @@
 {
   "name": "todolist-app",
   "version": "1.0.0",
-  "description": "Uma aplicação web moderna para gerenciamento de tarefas com persistência de dados",
-  "main": "index.html",
+  "description": "Uma aplicação web moderna para gerenciamento de tarefas com persistência de dados usando Node.js, Express e SQLite",
+  "main": "server.js",
   "scripts": {
-    "start": "python -m http.server 8000",
-    "dev": "python -m http.server 8000",
-    "serve": "npx http-server -p 8000 -c-1",
-    "lint": "echo 'Projeto em HTML/CSS/JS puro - sem linting configurado'",
-    "build": "echo 'Projeto não requer build - arquivos estáticos'"
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "frontend-only": "python -m http.server 8000",
+    "install-deps": "npm install",
+    "init-db": "node -e \"console.log('Banco SQLite será criado automaticamente ao iniciar o servidor')\"",
+    "test": "echo 'Testes não configurados ainda'",
+    "lint": "echo 'Linting não configurado ainda'"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
   },
   "keywords": [
     "todolist",
     "javascript",
     "html",
     "css",
-    "localStorage",
+    "nodejs",
+    "express",
+    "sqlite",
+    "rest-api",
     "web-app",
     "task-manager"
   ],
   "author": "Aluno da Disciplina de Computação em Nuvem",
   "license": "MIT",
-  "devDependencies": {},
   "repository": {
     "type": "git",
     "url": "git+https://github.com/usuario/nuvem20251.git"
