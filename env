@@ -1,0 +1,10 @@
+# Modelo de .env. Preencha com as informações corretas e renomeie para .env
+# Configurações do banco PostgreSQL
+PG_HOST=localhost
+PG_PORT=5432
+PG_USER=seu_usuario
+PG_PASSWORD=sua_senha
+PG_DATABASE=seu_banco
+
+# Porta do backend (opcional)
+PORT=3000

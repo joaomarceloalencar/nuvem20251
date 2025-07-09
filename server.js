@@ -1,5 +1,6 @@
+require('dotenv').config();
 const express = require('express');
-const sqlite3 = require('sqlite3').verbose();
+const { Pool } = require('pg');
 const cors = require('cors');
 const path = require('path');
 
@@ -11,38 +12,36 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '.')));
 
-// Inicializar banco de dados SQLite
-const dbPath = path.join(__dirname, 'todolist.db');
-const db = new sqlite3.Database(dbPath, (err) => {
-    if (err) {
-        console.error('Erro ao conectar com o banco de dados:', err.message);
-    } else {
-        console.log('Conectado ao banco SQLite.');
-        initializeDatabase();
-    }
+// Configuração do banco PostgreSQL via .env
+const pool = new Pool({
+    host: process.env.PG_HOST,
+    port: process.env.PG_PORT,
+    user: process.env.PG_USER,
+    password: process.env.PG_PASSWORD,
+    database: process.env.PG_DATABASE,
 });
 
-// Criar tabela se não existir
-function initializeDatabase() {
+// Inicializar banco de dados PostgreSQL
+async function initializeDatabase() {
     const createTableQuery = `
         CREATE TABLE IF NOT EXISTS tasks (
             id TEXT PRIMARY KEY,
             text TEXT NOT NULL,
-            completed BOOLEAN DEFAULT 0,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            completed_at DATETIME NULL,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            completed BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            completed_at TIMESTAMP NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     `;
-
-    db.run(createTableQuery, (err) => {
-        if (err) {
-            console.error('Erro ao criar tabela:', err.message);
-        } else {
-            console.log('Tabela "tasks" criada ou já existe.');
-        }
-    });
+    try {
+        await pool.query(createTableQuery);
+        console.log('Tabela "tasks" criada ou já existe.');
+    } catch (err) {
+        console.error('Erro ao criar tabela:', err.message);
+    }
 }
+
+initializeDatabase();
 
 // Middleware para log de requisições
 app.use((req, res, next) => {
@@ -53,327 +52,250 @@ app.use((req, res, next) => {
 // ===== ROTAS DA API =====
 
 // GET /api/tasks - Listar todas as tarefas
-app.get('/api/tasks', (req, res) => {
+app.get('/api/tasks', async (req, res) => {
     const { filter } = req.query;
     let query = 'SELECT * FROM tasks ORDER BY created_at DESC';
-    
     if (filter === 'pending') {
-        query = 'SELECT * FROM tasks WHERE completed = 0 ORDER BY created_at DESC';
+        query = 'SELECT * FROM tasks WHERE completed = FALSE ORDER BY created_at DESC';
     } else if (filter === 'completed') {
-        query = 'SELECT * FROM tasks WHERE completed = 1 ORDER BY created_at DESC';
+        query = 'SELECT * FROM tasks WHERE completed = TRUE ORDER BY created_at DESC';
     }
-
-    db.all(query, [], (err, rows) => {
-        if (err) {
-            console.error('Erro ao buscar tarefas:', err.message);
-            res.status(500).json({ error: 'Erro interno do servidor' });
-        } else {
-            // Converter completed de 0/1 para boolean
-            const tasks = rows.map(row => ({
-                ...row,
-                completed: Boolean(row.completed),
-                createdAt: row.created_at,
-                completedAt: row.completed_at,
-                updatedAt: row.updated_at
-            }));
-            res.json(tasks);
-        }
-    });
+    try {
+        const { rows } = await pool.query(query);
+        const tasks = rows.map(row => ({
+            ...row,
+            completed: Boolean(row.completed),
+            createdAt: row.created_at,
+            completedAt: row.completed_at,
+            updatedAt: row.updated_at
+        }));
+        res.json(tasks);
+    } catch (err) {
+        console.error('Erro ao buscar tarefas:', err.message);
+        res.status(500).json({ error: 'Erro interno do servidor' });
+    }
 });
 
 // POST /api/tasks - Criar nova tarefa
-app.post('/api/tasks', (req, res) => {
+app.post('/api/tasks', async (req, res) => {
     const { text } = req.body;
-
     if (!text || text.trim() === '') {
         return res.status(400).json({ error: 'Texto da tarefa é obrigatório' });
     }
-
     const id = Date.now().toString(36) + Math.random().toString(36).substr(2);
     const now = new Date().toISOString();
-
     const query = `
         INSERT INTO tasks (id, text, completed, created_at, updated_at)
-        VALUES (?, ?, 0, ?, ?)
+        VALUES ($1, $2, FALSE, $3, $3)
+        RETURNING *
     `;
-
-    db.run(query, [id, text.trim(), now, now], function(err) {
-        if (err) {
-            console.error('Erro ao criar tarefa:', err.message);
-            res.status(500).json({ error: 'Erro interno do servidor' });
-        } else {
-            // Buscar a tarefa criada para retornar
-            db.get('SELECT * FROM tasks WHERE id = ?', [id], (err, row) => {
-                if (err) {
-                    res.status(500).json({ error: 'Erro ao buscar tarefa criada' });
-                } else {
-                    const task = {
-                        ...row,
-                        completed: Boolean(row.completed),
-                        createdAt: row.created_at,
-                        completedAt: row.completed_at,
-                        updatedAt: row.updated_at
-                    };
-                    res.status(201).json(task);
-                }
-            });
-        }
-    });
+    try {
+        const { rows } = await pool.query(query, [id, text.trim(), now]);
+        const row = rows[0];
+        const task = {
+            ...row,
+            completed: Boolean(row.completed),
+            createdAt: row.created_at,
+            completedAt: row.completed_at,
+            updatedAt: row.updated_at
+        };
+        res.status(201).json(task);
+    } catch (err) {
+        console.error('Erro ao criar tarefa:', err.message);
+        res.status(500).json({ error: 'Erro interno do servidor' });
+    }
 });
 
 // PUT /api/tasks/:id - Atualizar tarefa
-app.put('/api/tasks/:id', (req, res) => {
+app.put('/api/tasks/:id', async (req, res) => {
     const { id } = req.params;
     const { text, completed } = req.body;
-
     if (!text || text.trim() === '') {
         return res.status(400).json({ error: 'Texto da tarefa é obrigatório' });
     }
-
     const now = new Date().toISOString();
     const completedAt = completed ? now : null;
-
     const query = `
         UPDATE tasks 
-        SET text = ?, completed = ?, completed_at = ?, updated_at = ?
-        WHERE id = ?
+        SET text = $1, completed = $2, completed_at = $3, updated_at = $4
+        WHERE id = $5
+        RETURNING *
     `;
-
-    db.run(query, [text.trim(), completed ? 1 : 0, completedAt, now, id], function(err) {
-        if (err) {
-            console.error('Erro ao atualizar tarefa:', err.message);
-            res.status(500).json({ error: 'Erro interno do servidor' });
-        } else if (this.changes === 0) {
-            res.status(404).json({ error: 'Tarefa não encontrada' });
-        } else {
-            // Buscar a tarefa atualizada
-            db.get('SELECT * FROM tasks WHERE id = ?', [id], (err, row) => {
-                if (err) {
-                    res.status(500).json({ error: 'Erro ao buscar tarefa atualizada' });
-                } else {
-                    const task = {
-                        ...row,
-                        completed: Boolean(row.completed),
-                        createdAt: row.created_at,
-                        completedAt: row.completed_at,
-                        updatedAt: row.updated_at
-                    };
-                    res.json(task);
-                }
-            });
+    try {
+        const { rows } = await pool.query(query, [text.trim(), completed, completedAt, now, id]);
+        if (rows.length === 0) {
+            return res.status(404).json({ error: 'Tarefa não encontrada' });
         }
-    });
+        const row = rows[0];
+        const task = {
+            ...row,
+            completed: Boolean(row.completed),
+            createdAt: row.created_at,
+            completedAt: row.completed_at,
+            updatedAt: row.updated_at
+        };
+        res.json(task);
+    } catch (err) {
+        console.error('Erro ao atualizar tarefa:', err.message);
+        res.status(500).json({ error: 'Erro interno do servidor' });
+    }
 });
 
 // PATCH /api/tasks/:id/toggle - Alternar status da tarefa
-app.patch('/api/tasks/:id/toggle', (req, res) => {
+app.patch('/api/tasks/:id/toggle', async (req, res) => {
     const { id } = req.params;
-
-    // Primeiro, buscar o status atual
-    db.get('SELECT completed FROM tasks WHERE id = ?', [id], (err, row) => {
-        if (err) {
-            console.error('Erro ao buscar tarefa:', err.message);
-            res.status(500).json({ error: 'Erro interno do servidor' });
-        } else if (!row) {
-            res.status(404).json({ error: 'Tarefa não encontrada' });
-        } else {
-            const newCompleted = !Boolean(row.completed);
-            const now = new Date().toISOString();
-            const completedAt = newCompleted ? now : null;
-
-            const query = `
-                UPDATE tasks 
-                SET completed = ?, completed_at = ?, updated_at = ?
-                WHERE id = ?
-            `;
-
-            db.run(query, [newCompleted ? 1 : 0, completedAt, now, id], function(err) {
-                if (err) {
-                    console.error('Erro ao alternar tarefa:', err.message);
-                    res.status(500).json({ error: 'Erro interno do servidor' });
-                } else {
-                    // Buscar a tarefa atualizada
-                    db.get('SELECT * FROM tasks WHERE id = ?', [id], (err, row) => {
-                        if (err) {
-                            res.status(500).json({ error: 'Erro ao buscar tarefa atualizada' });
-                        } else {
-                            const task = {
-                                ...row,
-                                completed: Boolean(row.completed),
-                                createdAt: row.created_at,
-                                completedAt: row.completed_at,
-                                updatedAt: row.updated_at
-                            };
-                            res.json(task);
-                        }
-                    });
-                }
-            });
+    try {
+        // Buscar status atual
+        const { rows: currentRows } = await pool.query('SELECT completed FROM tasks WHERE id = $1', [id]);
+        if (currentRows.length === 0) {
+            return res.status(404).json({ error: 'Tarefa não encontrada' });
         }
-    });
+        const newCompleted = !currentRows[0].completed;
+        const now = new Date().toISOString();
+        const completedAt = newCompleted ? now : null;
+        const updateQuery = `
+            UPDATE tasks 
+            SET completed = $1, completed_at = $2, updated_at = $3
+            WHERE id = $4
+            RETURNING *
+        `;
+        const { rows } = await pool.query(updateQuery, [newCompleted, completedAt, now, id]);
+        const row = rows[0];
+        const task = {
+            ...row,
+            completed: Boolean(row.completed),
+            createdAt: row.created_at,
+            completedAt: row.completed_at,
+            updatedAt: row.updated_at
+        };
+        res.json(task);
+    } catch (err) {
+        console.error('Erro ao alternar tarefa:', err.message);
+        res.status(500).json({ error: 'Erro interno do servidor' });
+    }
 });
 
 // DELETE /api/tasks/:id - Deletar tarefa
-app.delete('/api/tasks/:id', (req, res) => {
+app.delete('/api/tasks/:id', async (req, res) => {
     const { id } = req.params;
-
-    const query = 'DELETE FROM tasks WHERE id = ?';
-
-    db.run(query, [id], function(err) {
-        if (err) {
-            console.error('Erro ao deletar tarefa:', err.message);
-            res.status(500).json({ error: 'Erro interno do servidor' });
-        } else if (this.changes === 0) {
-            res.status(404).json({ error: 'Tarefa não encontrada' });
-        } else {
-            res.status(204).send(); // No Content
+    const query = 'DELETE FROM tasks WHERE id = $1';
+    try {
+        const result = await pool.query(query, [id]);
+        if (result.rowCount === 0) {
+            return res.status(404).json({ error: 'Tarefa não encontrada' });
         }
-    });
+        res.status(204).send();
+    } catch (err) {
+        console.error('Erro ao deletar tarefa:', err.message);
+        res.status(500).json({ error: 'Erro interno do servidor' });
+    }
 });
 
 // DELETE /api/tasks - Deletar múltiplas tarefas
-app.delete('/api/tasks', (req, res) => {
+app.delete('/api/tasks', async (req, res) => {
     const { filter } = req.query;
     let query = 'DELETE FROM tasks';
-
+    let params = [];
     if (filter === 'completed') {
-        query = 'DELETE FROM tasks WHERE completed = 1';
+        query = 'DELETE FROM tasks WHERE completed = TRUE';
     } else if (filter === 'all') {
         query = 'DELETE FROM tasks';
     } else {
         return res.status(400).json({ error: 'Filtro inválido. Use "completed" ou "all"' });
     }
-
-    db.run(query, [], function(err) {
-        if (err) {
-            console.error('Erro ao deletar tarefas:', err.message);
-            res.status(500).json({ error: 'Erro interno do servidor' });
-        } else {
-            res.json({ deletedCount: this.changes });
-        }
-    });
+    try {
+        const result = await pool.query(query, params);
+        res.json({ deletedCount: result.rowCount });
+    } catch (err) {
+        console.error('Erro ao deletar tarefas:', err.message);
+        res.status(500).json({ error: 'Erro interno do servidor' });
+    }
 });
 
 // GET /api/stats - Estatísticas das tarefas
-app.get('/api/stats', (req, res) => {
+app.get('/api/stats', async (req, res) => {
     const queries = [
         'SELECT COUNT(*) as total FROM tasks',
-        'SELECT COUNT(*) as completed FROM tasks WHERE completed = 1',
-        'SELECT COUNT(*) as pending FROM tasks WHERE completed = 0'
+        'SELECT COUNT(*) as completed FROM tasks WHERE completed = TRUE',
+        'SELECT COUNT(*) as pending FROM tasks WHERE completed = FALSE'
     ];
-
-    Promise.all(queries.map(query => {
-        return new Promise((resolve, reject) => {
-            db.get(query, [], (err, row) => {
-                if (err) reject(err);
-                else resolve(row);
-            });
-        });
-    }))
-    .then(results => {
+    try {
+        const results = await Promise.all(queries.map(q => pool.query(q)));
         res.json({
-            total: results[0].total,
-            completed: results[1].completed,
-            pending: results[2].pending
+            total: parseInt(results[0].rows[0].total, 10),
+            completed: parseInt(results[1].rows[0].completed, 10),
+            pending: parseInt(results[2].rows[0].pending, 10)
         });
-    })
-    .catch(err => {
+    } catch (err) {
         console.error('Erro ao buscar estatísticas:', err.message);
         res.status(500).json({ error: 'Erro interno do servidor' });
-    });
+    }
 });
 
 // GET /api/export - Exportar dados
-app.get('/api/export', (req, res) => {
-    db.all('SELECT * FROM tasks ORDER BY created_at DESC', [], (err, rows) => {
-        if (err) {
-            console.error('Erro ao exportar dados:', err.message);
-            res.status(500).json({ error: 'Erro interno do servidor' });
-        } else {
-            const tasks = rows.map(row => ({
-                ...row,
-                completed: Boolean(row.completed),
-                createdAt: row.created_at,
-                completedAt: row.completed_at,
-                updatedAt: row.updated_at
-            }));
-
-            const exportData = {
-                tasks,
-                exportDate: new Date().toISOString(),
-                version: '1.0',
-                totalTasks: tasks.length
-            };
-
-            res.setHeader('Content-Type', 'application/json');
-            res.setHeader('Content-Disposition', `attachment; filename="todolist-backup-${new Date().toISOString().split('T')[0]}.json"`);
-            res.json(exportData);
-        }
-    });
+app.get('/api/export', async (req, res) => {
+    try {
+        const { rows } = await pool.query('SELECT * FROM tasks ORDER BY created_at DESC');
+        const tasks = rows.map(row => ({
+            ...row,
+            completed: Boolean(row.completed),
+            createdAt: row.created_at,
+            completedAt: row.completed_at,
+            updatedAt: row.updated_at
+        }));
+        const exportData = {
+            tasks,
+            exportDate: new Date().toISOString(),
+            version: '1.0',
+            totalTasks: tasks.length
+        };
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Content-Disposition', `attachment; filename="todolist-backup-${new Date().toISOString().split('T')[0]}.json"`);
+        res.json(exportData);
+    } catch (err) {
+        console.error('Erro ao exportar dados:', err.message);
+        res.status(500).json({ error: 'Erro interno do servidor' });
+    }
 });
 
 // POST /api/import - Importar dados
-app.post('/api/import', (req, res) => {
+app.post('/api/import', async (req, res) => {
     const { tasks, replaceExisting } = req.body;
-
     if (!Array.isArray(tasks)) {
         return res.status(400).json({ error: 'Dados inválidos. Esperado array de tarefas.' });
     }
-
-    const importTasks = async () => {
-        try {
-            // Se replaceExisting for true, limpar tabela primeiro
-            if (replaceExisting) {
-                await new Promise((resolve, reject) => {
-                    db.run('DELETE FROM tasks', [], (err) => {
-                        if (err) reject(err);
-                        else resolve();
-                    });
-                });
-            }
-
-            // Inserir tarefas
-            const insertQuery = `
-                INSERT INTO tasks (id, text, completed, created_at, completed_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?)
-            `;
-
-            let importedCount = 0;
-            for (const task of tasks) {
-                const id = task.id || (Date.now().toString(36) + Math.random().toString(36).substr(2));
-                const now = new Date().toISOString();
-                
-                await new Promise((resolve, reject) => {
-                    db.run(insertQuery, [
-                        id,
-                        task.text,
-                        task.completed ? 1 : 0,
-                        task.createdAt || task.created_at || now,
-                        task.completedAt || task.completed_at || null,
-                        task.updatedAt || task.updated_at || now
-                    ], (err) => {
-                        if (err) reject(err);
-                        else {
-                            importedCount++;
-                            resolve();
-                        }
-                    });
-                });
-            }
-
-            res.json({
-                message: 'Dados importados com sucesso',
-                importedCount,
-                totalTasks: tasks.length
-            });
-
-        } catch (error) {
-            console.error('Erro ao importar dados:', error.message);
-            res.status(500).json({ error: 'Erro ao importar dados' });
+    try {
+        if (replaceExisting) {
+            await pool.query('DELETE FROM tasks');
         }
-    };
-
-    importTasks();
+        const insertQuery = `
+            INSERT INTO tasks (id, text, completed, created_at, completed_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            ON CONFLICT (id) DO NOTHING
+        `;
+        let importedCount = 0;
+        for (const task of tasks) {
+            const id = task.id || (Date.now().toString(36) + Math.random().toString(36).substr(2));
+            const now = new Date().toISOString();
+            await pool.query(insertQuery, [
+                id,
+                task.text,
+                !!task.completed,
+                task.createdAt || task.created_at || now,
+                task.completedAt || task.completed_at || null,
+                task.updatedAt || task.updated_at || now
+            ]);
+            importedCount++;
+        }
+        res.json({
+            message: 'Dados importados com sucesso',
+            importedCount,
+            totalTasks: tasks.length
+        });
+    } catch (error) {
+        console.error('Erro ao importar dados:', error.message);
+        res.status(500).json({ error: 'Erro ao importar dados' });
+    }
 });
 
 // Servir arquivos estáticos (frontend)
@@ -400,14 +322,9 @@ app.listen(PORT, () => {
 });
 
 // Graceful shutdown
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
     console.log('\n🛑 Encerrando servidor...');
-    db.close((err) => {
-        if (err) {
-            console.error('Erro ao fechar banco de dados:', err.message);
-        } else {
-            console.log('✅ Banco de dados fechado.');
-        }
-        process.exit(0);
-    });
+    await pool.end();
+    console.log('✅ Conexão com banco de dados encerrada.');
+    process.exit(0);
 });
