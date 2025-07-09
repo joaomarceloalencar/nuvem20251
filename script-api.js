@@ -1,5 +1,5 @@
 // Configuração da API
-const API_BASE_URL = 'http://localhost:3000/api';
+const API_BASE_URL = 'http://backend:3000/api';
 
 // Classe principal para gerenciar a lista de tarefas com backend
 class TodoList {
