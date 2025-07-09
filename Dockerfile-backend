@@ -1,0 +1,20 @@
+FROM node:20-alpine
+
+# Diretório de trabalho
+WORKDIR /app
+
+# Copiar arquivos do projeto
+COPY package.json package-lock.json* ./
+COPY server.js ./
+
+# Instalar dependências
+RUN npm install --production
+
+# Copiar outros arquivos necessários (se houver)
+# COPY <outros-arquivos> ./
+
+# Expor a porta usada pelo servidor
+EXPOSE 3000
+
+# Comando para iniciar o servidor
+CMD ["node", "server.js"]
