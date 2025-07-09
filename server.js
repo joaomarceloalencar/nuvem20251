@@ -4,7 +4,7 @@ const cors = require('cors');
 const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 33001;
 
 // Middleware
 app.use(cors());
@@ -393,10 +393,10 @@ app.use((req, res) => {
 });
 
 // Iniciar servidor
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Servidor rodando na porta ${PORT}`);
-    console.log(`📱 Frontend: http://localhost:${PORT}`);
-    console.log(`🔌 API: http://localhost:${PORT}/api`);
+    console.log(`📱 Frontend: http://0.0.0.0:${PORT}`);
+    console.log(`🔌 API: http://0.0.0.0:${PORT}/api`);
 });
 
 // Graceful shutdown
