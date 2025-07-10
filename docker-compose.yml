@@ -7,7 +7,7 @@ services:
       dockerfile: Dockerfile-backend
     container_name: todolist-backend
     ports:
-      - "3000:3000"
+      - "33001:33001"
     restart: unless-stopped
     volumes:
       - ./todolist.db:/app/todolist.db
@@ -18,7 +18,7 @@ services:
       dockerfile: Dockerfile-frontend
     container_name: todolist-frontend
     ports:
-      - "8080:80"
+      - "80:80"
     depends_on:
       - backend
     restart: unless-stopped

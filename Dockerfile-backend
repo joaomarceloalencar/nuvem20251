@@ -12,7 +12,7 @@ COPY .env ./
 RUN npm install --production
 
 # Expor a porta usada pelo servidor
-EXPOSE 3000
+EXPOSE 33001
 
 # Comando para iniciar o servidor
 CMD ["node", "server.js"]
