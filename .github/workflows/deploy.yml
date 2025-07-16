@@ -45,6 +45,16 @@ jobs:
             echo "PORT=${{ secrets.ENV_PORT }}" >> .env
           '
 
+      - name: Create config.js on VM
+        env:
+          HOST: ${{ secrets.AWS_SSH_HOST }}
+          USER: ${{ secrets.AWS_SSH_USER }}
+        run: |
+          ssh -o StrictHostKeyChecking=no $USER@$HOST '
+            cd ~/nuvem20251
+            echo "window.API_BASE_URL = 'http://${{ secrets.AWS_SSH_HOST }}:33001/api'" > config.js
+          '
+
       - name: Docker Compose Build and Up on VM
         env:
           HOST: ${{ secrets.AWS_SSH_HOST }}
