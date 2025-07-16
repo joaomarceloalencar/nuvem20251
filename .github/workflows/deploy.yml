@@ -1,0 +1,62 @@
+name: Deploy to AWS VM
+
+on:
+  push:
+    branches:
+      - workflow  # Altere para 'main' se necessário
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Add SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.AWS_SSH_KEY }}
+
+      - name: Clone or update repository on VM
+        env:
+          HOST: ${{ secrets.AWS_SSH_HOST }}
+          USER: ${{ secrets.AWS_SSH_USER }}
+        run: |
+          ssh -o StrictHostKeyChecking=no $USER@$HOST '
+            if [ ! -d ~/nuvem20251 ]; then
+              git clone https://github.com/joaomarceloalencar/nuvem20251.git
+            else
+              cd ~/nuvem20251 && git pull
+            fi
+          '
+
+      - name: Create .env file on VM
+        env:
+          HOST: ${{ secrets.AWS_SSH_HOST }}
+          USER: ${{ secrets.AWS_SSH_USER }}
+          PG_HOST: ${{ secrets.ENV_PG_HOST }}
+          PG_PORT: ${{ secrets.ENV_PG_PORT }}
+          PG_USER: ${{ secrets.ENV_PG_USER }}
+          PG_PASSWORD: ${{ secrets.ENV_PG_PASSWORD }}
+          PG_DATABASE: ${{ secrets.ENV_PG_DATABASE }}
+          PORT: ${{ secrets.ENV_PORT }}
+        run: |
+          ssh -o StrictHostKeyChecking=no $USER@$HOST '
+            cd ~/nuvem20251
+            echo "PG_HOST=$PG_HOST" > .env
+            echo "PG_PORT=$PG_PORT" >> .env
+            echo "PG_USER=$PG_USER" >> .env
+            echo "PG_PASSWORD=$PG_PASSWORD" >> .env
+            echo "PG_DATABASE=$PG_DATABASE" >> .env
+            echo "PORT=$PORT" >> .env
+          '
+
+      - name: Docker Compose Up on VM
+        env:
+          HOST: ${{ secrets.AWS_SSH_HOST }}
+          USER: ${{ secrets.AWS_SSH_USER }}
+        run: |
+          ssh -o StrictHostKeyChecking=no $USER@$HOST '
+            cd ~/nuvem20251
+            docker compose up -d || docker-compose up -d
+          '
