@@ -24,7 +24,7 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no $USER@$HOST '
             if [ ! -d ~/nuvem20251 ]; then
-              git clone https://github.com/joaomarceloalencar/nuvem20251.git
+              git clone --branch workflow https://github.com/joaomarceloalencar/nuvem20251.git
             else
               cd ~/nuvem20251 && git pull
             fi
