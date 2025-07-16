@@ -52,7 +52,7 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no $USER@$HOST '
             cd ~/nuvem20251
-            echo "window.API_BASE_URL = 'http://${{ secrets.AWS_SSH_HOST }}:33001/api'" > config.js
+            echo "window.API_BASE_URL = \"http://${{ secrets.AWS_SSH_HOST }}:33001/api\"" > config.js
           '
 
       - name: Docker Compose Build and Up on VM
